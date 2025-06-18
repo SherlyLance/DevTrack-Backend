@@ -57,7 +57,7 @@ const mongooseOptions = {
 };
 
 // MongoDB connection string
-const MONGODB_URI = `mongodb://localhost:27017/DevTrack`;
+const MONGODB_URI = `mongodb+srv://mrunalgaikwad02:devtrack@cluster0.4jliv9c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Connect to MongoDB with retry logic
 const connectWithRetry = async () => {
