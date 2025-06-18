@@ -17,7 +17,7 @@ const httpServer = http.createServer(app);
 // Configure Socket.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:3000", // Allow your frontend origin
+    origin: process.env.FRONTEND_URL,
     methods: ["GET", "POST"]
   }
 });
@@ -44,7 +44,11 @@ io.on("connection", (socket) => {
 });
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true
+}));
 app.use(express.json());
 
 // MongoDB connection options
@@ -57,7 +61,7 @@ const mongooseOptions = {
 };
 
 // MongoDB connection string
-const MONGODB_URI = `mongodb+srv://mrunalgaikwad02:devtrack@cluster0.4jliv9c.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const MONGODB_URI = process.env.MONGODB_URI;
 
 // Connect to MongoDB with retry logic
 const connectWithRetry = async () => {
