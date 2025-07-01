@@ -17,7 +17,7 @@ const httpServer = http.createServer(app);
 // CORS Configuration
 const allowedOrigins = process.env.FRONTEND_URL 
   ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-  : ['http://localhost:3000', 'https://devtrack-project-management.netlify.app'];
+  : ['http://localhost:3000', 'https://dev-track-five.vercel.app/'];
 
 console.log('Allowed CORS origins:', allowedOrigins);
 
