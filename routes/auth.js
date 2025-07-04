@@ -7,19 +7,20 @@ const auth = require('../middleware/auth');
 // Register a new user
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body; // Added role to destructuring
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: 'User already exists with this email.' });
     }
 
     // Create new user
     const user = new User({
       name,
       email,
-      password
+      password,
+      role: role || 'Team Member' // Set role, default to 'Team Member' if not provided
     });
 
     await user.save();
@@ -41,6 +42,7 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (err) {
+    console.error('Registration error:', err);
     res.status(400).json({ message: err.message });
   }
 });
@@ -79,6 +81,7 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (err) {
+    console.error('Login error:', err);
     res.status(500).json({ message: err.message });
   }
 });
@@ -92,8 +95,21 @@ router.get('/me', auth, async (req, res) => {
     }
     res.json(user);
   } catch (err) {
+    console.error('Error fetching current user:', err);
     res.status(500).json({ message: err.message });
   }
 });
 
-module.exports = router; 
+// GET all users (for populating assignee/reporter dropdowns)
+router.get('/users', auth, async (req, res) => {
+  try {
+    // Only return _id, name, and email for security
+    const users = await User.find().select('_id name email role');
+    res.json(users);
+  } catch (err) {
+    console.error('Error fetching all users:', err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;
