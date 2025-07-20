@@ -1,214 +1,163 @@
 const express = require('express');
 const router = express.Router();
 const Project = require('../models/Project');
-const User = require('../models/User'); // Required for user validation in add/remove members
-const auth = require('../middleware/auth'); // Middleware for authentication
+const User = require('../models/User');
+const auth = require('../middleware/auth');
 
-/**
- * @route POST /api/projects
- * @desc Create a new project
- * @access Private
- */
+// Create a new project
 router.post('/', auth, async (req, res) => {
   try {
     const project = new Project({
-      ...req.body, // Spread other project fields from request body
-      createdBy: req.user.id, // Set the creator to the authenticated user's ID
-      teamMembers: [req.user.id] // Add the creator as the first team member
+      ...req.body,
+      createdBy: req.user.id,
+      teamMembers: [req.user.id] // Add creator as first team member
     });
     await project.save();
     res.status(201).json(project);
   } catch (err) {
-    console.error('Error creating project:', err.message);
-    res.status(400).json({ message: err.message }); // Send specific validation error messages
+    res.status(400).json({ message: err.message });
   }
 });
 
-/**
- * @route GET /api/projects
- * @desc Get all projects accessible by the authenticated user (created by or member of)
- * @access Private
- */
+// Get all projects (for authenticated user)
 router.get('/', auth, async (req, res) => {
   try {
     const projects = await Project.find({
       $or: [
-        { createdBy: req.user.id }, // Projects created by the user
-        { teamMembers: req.user.id } // Projects where the user is a team member
+        { createdBy: req.user.id },
+        { teamMembers: req.user.id }
       ]
-    }).populate('teamMembers', 'name email'); // Populate team members with name and email
+    }).populate('teamMembers', 'name email');
     res.json(projects);
   } catch (err) {
-    console.error('Error fetching all projects:', err.message);
-    res.status(500).json({ message: 'Server error. Could not fetch projects.' });
+    res.status(500).json({ message: err.message });
   }
 });
 
-/**
- * @route GET /api/projects/:id
- * @desc Get a specific project by ID
- * @access Private
- */
+// Get a specific project
 router.get('/:id', auth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id)
-      .populate('teamMembers', 'name email') // Populate team members
-      .populate('createdBy', 'name email'); // Populate creator
-
+      .populate('teamMembers', 'name email')
+      .populate('createdBy', 'name email');
+    
     if (!project) {
-      return res.status(404).json({ message: 'Project not found.' });
+      return res.status(404).json({ message: 'Project not found' });
     }
 
-    // Check if the authenticated user has access to this project
-    // User must be either the creator or a team member
-    const isCreator = project.createdBy._id.toString() === req.user.id;
-    const isTeamMember = project.teamMembers.some(member => member._id.toString() === req.user.id);
-
-    if (!isCreator && !isTeamMember) {
-      return res.status(403).json({ message: 'Access denied: You are not authorized to view this project.' });
+    // Check if user has access to the project
+    if (!project.teamMembers.includes(req.user.id) && project.createdBy.toString() !== req.user.id) {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     res.json(project);
   } catch (err) {
-    console.error('Error fetching specific project:', err.message);
-    res.status(500).json({ message: 'Server error. Could not fetch project details.' });
+    res.status(500).json({ message: err.message });
   }
 });
 
-/**
- * @route PUT /api/projects/:id
- * @desc Update a project by ID
- * @access Private (only creator can update)
- */
+// Update a project
 router.put('/:id', auth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-
+    
     if (!project) {
-      return res.status(404).json({ message: 'Project not found.' });
+      return res.status(404).json({ message: 'Project not found' });
     }
 
-    // Ensure only the project creator can update project details
+    // Only creator can update project details
     if (project.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied: Only the project creator can update project details.' });
+      return res.status(403).json({ message: 'Only project creator can update project details' });
     }
 
-    // Update project fields from request body
     Object.assign(project, req.body);
-    await project.save(); // Save the updated project
+    await project.save();
     res.json(project);
   } catch (err) {
-    console.error('Error updating project:', err.message);
-    res.status(400).json({ message: err.message }); // Send specific validation error messages
+    res.status(400).json({ message: err.message });
   }
 });
 
-/**
- * @route DELETE /api/projects/:id
- * @desc Delete a project by ID
- * @access Private (only creator can delete)
- */
+// Delete a project
 router.delete('/:id', auth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-
+    
     if (!project) {
-      return res.status(404).json({ message: 'Project not found.' });
+      return res.status(404).json({ message: 'Project not found' });
     }
 
-    // Ensure only the project creator can delete the project
+    // Only creator can delete project
     if (project.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied: Only the project creator can delete this project.' });
+      return res.status(403).json({ message: 'Only project creator can delete project' });
     }
 
-    // Use deleteOne() for Mongoose 6+ to remove the document
-    await project.deleteOne();
-    res.json({ message: 'Project deleted successfully.' });
+    await project.remove();
+    res.json({ message: 'Project deleted' });
   } catch (err) {
-    console.error('Error deleting project:', err.message);
-    res.status(500).json({ message: 'Server error. Could not delete project.' });
+    res.status(500).json({ message: err.message });
   }
 });
 
-/**
- * @route POST /api/projects/:id/members
- * @desc Add a team member to a project
- * @access Private (only creator can add members)
- */
+// Add team member
 router.post('/:id/members', auth, async (req, res) => {
   try {
     const { email } = req.body;
     const project = await Project.findById(req.params.id);
-
+    
     if (!project) {
-      return res.status(404).json({ message: 'Project not found.' });
+      return res.status(404).json({ message: 'Project not found' });
     }
 
-    // Ensure only the project creator can add members
+    // Only creator can add members
     if (project.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied: Only the project creator can add members.' });
+      return res.status(403).json({ message: 'Only project creator can add members' });
     }
 
-    // Find the user to be added by email
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: 'User not found with this email.' });
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if the user is already a team member
     if (project.teamMembers.includes(user._id)) {
-      return res.status(400).json({ message: 'User is already a team member of this project.' });
+      return res.status(400).json({ message: 'User is already a team member' });
     }
 
-    // Add the user's ID to the teamMembers array
     project.teamMembers.push(user._id);
-    await project.save(); // Save the updated project
-
-    // Populate the new member's details before sending response
-    await project.populate('teamMembers', 'name email');
+    await project.save();
     res.json(project);
   } catch (err) {
-    console.error('Error adding team member:', err.message);
     res.status(400).json({ message: err.message });
   }
 });
 
-/**
- * @route DELETE /api/projects/:id/members/:userId
- * @desc Remove a team member from a project
- * @access Private (only creator can remove members)
- */
+// Remove team member
 router.delete('/:id/members/:userId', auth, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-
+    
     if (!project) {
-      return res.status(404).json({ message: 'Project not found.' });
+      return res.status(404).json({ message: 'Project not found' });
     }
 
-    // Ensure only the project creator can remove members
+    // Only creator can remove members
     if (project.createdBy.toString() !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied: Only the project creator can remove members.' });
+      return res.status(403).json({ message: 'Only project creator can remove members' });
     }
 
-    // Prevent removing the project creator from the team members list
+    // Cannot remove creator
     if (req.params.userId === project.createdBy.toString()) {
-      return res.status(400).json({ message: 'Cannot remove the project creator from the team.' });
+      return res.status(400).json({ message: 'Cannot remove project creator' });
     }
 
-    // Filter out the user to be removed from the teamMembers array
     project.teamMembers = project.teamMembers.filter(
       member => member.toString() !== req.params.userId
     );
-    await project.save(); // Save the updated project
-
-    // Populate the remaining members before sending response
-    await project.populate('teamMembers', 'name email');
+    await project.save();
     res.json(project);
   } catch (err) {
-    console.error('Error removing team member:', err.message);
     res.status(400).json({ message: err.message });
   }
 });
 
-module.exports = router;
+module.exports = router; 
