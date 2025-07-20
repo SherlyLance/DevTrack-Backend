@@ -2,42 +2,35 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const auth = require('../middleware/auth'); // Middleware for authentication
+const auth = require('../middleware/auth');
 
-/**
- * @route POST /api/auth/register
- * @desc Register a new user
- * @access Public
- */
+// Register a new user
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
 
-    // Check if user already exists with the given email
+    // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists with this email.' });
+      return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create a new user instance
+    // Create new user
     const user = new User({
       name,
       email,
-      password,
-      role: role || 'Team Member' // Default role to 'Team Member' if not provided
+      password
     });
 
-    // Save the user to the database (password hashing happens in pre-save hook)
     await user.save();
 
-    // Generate a JWT token for the newly registered user
+    // Generate token
     const token = jwt.sign(
       { id: user._id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key', // Use environment variable for secret
-      { expiresIn: '24h' } // Token expires in 24 hours
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
     );
 
-    // Respond with the token and user details (excluding password)
     res.status(201).json({
       token,
       user: {
@@ -48,40 +41,34 @@ router.post('/register', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Registration error:', err.message); // Log the specific error message
-    res.status(500).json({ message: 'Server error during registration. Please try again later.' }); // Generic error for client
+    res.status(400).json({ message: err.message });
   }
 });
 
-/**
- * @route POST /api/auth/login
- * @desc Authenticate user & get token
- * @access Public
- */
+// Login user
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
+    // Find user
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials. Please check your email and password.' });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Compare provided password with hashed password in database
+    // Check password
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials. Please check your email and password.' });
+      return res.status(401).json({ message: 'Invalid email or password' });
     }
 
-    // Generate JWT token for the logged-in user
+    // Generate token
     const token = jwt.sign(
       { id: user._id, email: user.email },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
 
-    // Respond with the token and user details (excluding password)
     res.json({
       token,
       user: {
@@ -92,44 +79,21 @@ router.post('/login', async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('Login error:', err.message); // Log the specific error message
-    res.status(500).json({ message: 'Server error during login. Please try again later.' }); // Generic error for client
+    res.status(500).json({ message: err.message });
   }
 });
 
-/**
- * @route GET /api/auth/me
- * @desc Get current authenticated user's details
- * @access Private
- */
+// Get current user
 router.get('/me', auth, async (req, res) => {
   try {
-    // Find user by ID from the authenticated token, exclude password field
     const user = await User.findById(req.user.id).select('-password');
     if (!user) {
-      return res.status(404).json({ message: 'User not found.' });
+      return res.status(404).json({ message: 'User not found' });
     }
     res.json(user);
   } catch (err) {
-    console.error('Error fetching current user:', err.message);
-    res.status(500).json({ message: 'Server error. Could not fetch user details.' });
+    res.status(500).json({ message: err.message });
   }
 });
 
-/**
- * @route GET /api/auth/users
- * @desc Get all users (for populating assignee/reporter dropdowns)
- * @access Private (requires authentication)
- */
-router.get('/users', auth, async (req, res) => {
-  try {
-    // Fetch all users, but only select _id, name, email, and role for security and efficiency
-    const users = await User.find().select('_id name email role');
-    res.json(users);
-  } catch (err) {
-    console.error('Error fetching all users:', err.message);
-    res.status(500).json({ message: 'Server error. Could not fetch users.' });
-  }
-});
-
-module.exports = router;
+module.exports = router; 
