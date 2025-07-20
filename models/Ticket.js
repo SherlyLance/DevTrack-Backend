@@ -20,49 +20,20 @@ const ticketSchema = new mongoose.Schema({
     enum: ['To Do', 'In Progress', 'Done'],
     default: 'To Do'
   },
-  type: { // Added type field
-    type: String,
-    enum: ['Bug', 'Feature', 'Task'],
-    default: 'Task'
-  },
-  tags: [{ // Added tags field (array of strings)
-    type: String,
-    trim: true
-  }],
   assignee: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  },
-  reporter: { // Added reporter field (assuming it's the same as createdBy, but can be different)
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true // Reporter is mandatory
   },
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Project',
     required: true
   },
-  createdBy: { // This is the original creator of the ticket
+  createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  comments: [{ // Added comments array
-    author: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
-    },
-    text: {
-      type: String,
-      required: true
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now
-    }
-  }],
   createdAt: {
     type: Date,
     default: Date.now
@@ -79,4 +50,4 @@ ticketSchema.pre('save', function(next) {
   next();
 });
 
-module.exports = mongoose.model('Ticket', ticketSchema);
+module.exports = mongoose.model('Ticket', ticketSchema); 
